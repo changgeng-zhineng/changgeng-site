@@ -5,6 +5,7 @@
 ## 文件
 
 - `index.html`：全站单文件（Three.js + GSAP，CDN 引入，无构建管线）。直接修改此文件，不要拆分、不要引入需要构建的框架。
+- `images/`：页面图片（radar / visual / scene-kb / scene-trade 四张 webp）。index.html 里以相对路径 `images/xxx.webp` 引用（og:image 用仓库 raw 绝对地址）。**不要把图片改回 base64 内嵌**——内嵌会让 index.html 涨到 3MB 以上，任何工具都抓取不了全文。
 
 ## 红线（必须遵守）
 
