@@ -435,7 +435,7 @@ html{scroll-behavior:auto}
 <!-- COSMOS : scroll-driven flight through a real 3D starfield to Chang Geng -->
 <style>
 /* ---------- cosmos opening: pinned stage, camera driven 1:1 by scroll ---------- */
-.cosmos{position:relative;height:640vh}
+.cosmos{position:relative;height:500vh}
 /* one persistent full-screen sky: a fixed canvas pair mounted once and
    never unmounted, behind the ENTIRE first narrative — the cosmos
    flight, the arrival, the manifesto and all six JOURNEY acts. The
@@ -474,9 +474,9 @@ html{scroll-behavior:auto}
 .cosmos.reduced .cosmos-title{position:relative;inset:auto;opacity:1!important;visibility:visible!important;transform:none!important}
 .cosmos.reduced .ccap{position:relative;inset:auto;opacity:1!important;visibility:visible!important;transform:none!important;margin-top:30px}
 .cosmos.reduced .cosmos-arrival{position:relative;inset:auto;opacity:1!important;visibility:visible!important;transform:none!important;margin-top:44px}
-.cosmos.reduced .cosmos-hint,.cosmos.reduced .cosmos-rail{display:none}
+.cosmos.reduced .cosmos-hint{display:none}
 @media (max-width:760px){
-.cosmos{height:560vh}
+.cosmos{height:440vh}
 .ccap{bottom:17vh;padding:0 20px}
 .cosmos-rail{left:20px;right:20px;bottom:18px}
 .cosmos-hint{bottom:52px}
@@ -580,7 +580,7 @@ html{scroll-behavior:auto}
 .scene{background:rgba(10,13,28,.82);backdrop-filter:blur(10px) saturate(1.25);-webkit-backdrop-filter:blur(10px) saturate(1.25)}
 .jrail,.jhint{display:none}
 /* live mode: tall track + sticky stage, captions crossfade with scroll */
-.journey.live{height:680vh}
+.journey.live{height:540vh}
 .journey.live .journey-stage{position:sticky;top:0;height:100vh;height:100svh;padding:0;overflow:hidden}
 .journey.live .journey-stage::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 92% at 50% 38%,transparent 52%,rgba(3,4,16,.62));pointer-events:none}
 .journey.live .jcap{position:absolute;left:0;right:0;bottom:11vh;margin:0 auto;opacity:0;visibility:hidden;pointer-events:none;will-change:opacity,transform;z-index:2}
@@ -600,7 +600,7 @@ html{scroll-behavior:auto}
 .jhint .hline{width:1px;height:44px;background:linear-gradient(180deg,var(--gold-2),transparent);animation:jdrop 2.2s ease-in-out infinite;transform-origin:top}
 @keyframes jdrop{0%{transform:scaleY(.3);opacity:.4}55%{transform:scaleY(1);opacity:1}100%{transform:scaleY(.3);opacity:.4}}
 @media (max-width:760px){
-.journey.live{height:470vh}
+.journey.live{height:400vh}
 .journey.live .jcap{bottom:12vh}
 .jrail-dots{display:none}
 .jrail-count{left:20px;bottom:20px}
@@ -1383,38 +1383,53 @@ var curEl=document.getElementById("cosmos-cur");
 var stageNameEl=document.getElementById("cosmos-stage-name");
 var caps=[];
 for(var ci=0;ci<5;ci++)caps.push(section.querySelector('[data-ccap="'+ci+'"]'));
+/* the JOURNEY pinned stage is switched on here, in the one script
+   that drives it, so its height is final before geometry is cached */
+if(!reduceMotion&&journeySec)journeySec.classList.add("live");
 function clamp01(x){return x<0?0:x>1?1:x;}
 function smooth(a,b,x){var t=clamp01((x-a)/(b-a));return t*t*(3-2*t);}
-function progress(){
-var total=section.offsetHeight-window.innerHeight;
-if(total<=0)return 0;
+/* ---------- V2.2 unified narrative timeline ----------
+   ONE master scroll range: from the top of the cosmos section to
+   the bottom of the JOURNEY section (minus one viewport, where the
+   pinned journey stage releases). Every moving part derives from
+   the single scroll position read once per frame:
+     c = cosmos local progress  (flight + five journey lines +
+         arrival + cosmos rail) — the camera distance is a strict
+         function of c and reaches its minimum (46) exactly at c=1,
+         the same moment the arrival overlay completes.
+     m = master narrative progress (sky fade + published state)
+     j = journey local progress (six acts, jrail, flow steps)
+   Geometry is cached and refreshed only on resize / load / font
+   load — never measured per frame. ---------- */
+var GEO={top:0,cosmosH:0,journeyTop:0,journeyH:0,vh:1};
+function refreshGeometry(){
+var sy=window.scrollY||window.pageYOffset||0;
 var r=section.getBoundingClientRect();
-return clamp01(-r.top/total);
+GEO.top=r.top+sy;GEO.cosmosH=section.offsetHeight;GEO.vh=window.innerHeight||1;
+if(journeySec){var jr=journeySec.getBoundingClientRect();GEO.journeyTop=jr.top+sy;GEO.journeyH=journeySec.offsetHeight;}
+}
+function scrollNow(){return window.scrollY||window.pageYOffset||0;}
+function progress(){
+var total=GEO.cosmosH-GEO.vh;
+if(total<=0)return 0;
+return clamp01((scrollNow()-GEO.top)/total);
 }
 
-/* ---------- whole-narrative geometry: the flight spans the cosmos
-   section, the manifesto and the six JOURNEY acts as ONE scroll range,
-   so the camera keeps travelling — and Chang Geng keeps growing — for
-   the entire first narrative instead of finishing inside the hero.
+/* master range + journey range, both pure functions of the cached
+   geometry and the one scroll position — no layout reads per frame.
    The narrative ends at the bottom of the JOURNEY section; the sky
-   then fades out across the outro into the solid chapters. ---------- */
+   then fades out across the outro into the solid chapters. */
 function narrativeState(){
-var sy=window.scrollY||window.pageYOffset||0;
-var vh=window.innerHeight;
-var start=section.getBoundingClientRect().top+sy;
-var end=start+1;
-if(journeySec)end=journeySec.getBoundingClientRect().bottom+sy-vh;
-if(end<=start)end=start+1;
-return{p:clamp01((sy-start)/(end-start)),fade:1-smooth(end,end+vh*1.05,sy)};
+var sy=scrollNow();
+var end=GEO.journeyTop+GEO.journeyH-GEO.vh;
+var total=end-GEO.top;
+if(total<=0)total=1;
+return{p:clamp01((sy-GEO.top)/total),fade:1-smooth(end,end+GEO.vh*1.05,sy)};
 }
-/* the JOURNEY acts' own range, computed here so the caption driver
-   and the camera read ONE progress value chased in ONE loop */
 function journeyProgress(){
-if(!journeySec)return 0;
-var r=journeySec.getBoundingClientRect();
-var total=r.height-window.innerHeight;
+var total=GEO.journeyH-GEO.vh;
 if(total<=0)return 0;
-return clamp01(-r.top/total);
+return clamp01((scrollNow()-GEO.journeyTop)/total);
 }
 var lastFade=-1;
 function applyFade(f){
@@ -1490,7 +1505,7 @@ cap.style.transform="translateY("+((1-smooth(c-0.055,c-0.018,p))*20).toFixed(1)+
 cap.style.visibility=op<=0.01?"hidden":"visible";
 }
 if(arrivalEl){
-var aOp=smooth(0.905,0.975,p);
+var aOp=smooth(0.93,0.995,p);
 arrivalEl.style.opacity=aOp.toFixed(3);
 arrivalEl.style.transform="translateY(15vh) scale("+(0.96+0.04*aOp).toFixed(3)+")";
 arrivalEl.style.visibility=aOp<=0.01?"hidden":"visible";
@@ -1502,12 +1517,56 @@ hintEl.style.visibility=hOp<=0.01?"hidden":"visible";
 }
 if(fillEl)fillEl.style.transform="scaleX("+p.toFixed(4)+")";
 var st=0;
-if(p>=0.9)st=6;else for(var j=0;j<5;j++){if(Math.abs(p-CAP_C[j])<0.075)st=j+1;}
+if(p>=0.93)st=6;else for(var j=0;j<5;j++){if(Math.abs(p-CAP_C[j])<0.075)st=j+1;}
 if(st!==lastStage){
 lastStage=st;
 if(curEl)curEl.textContent=st===0?"启程":(st===6?"抵达":"0"+st);
 if(stageNameEl)stageNameEl.textContent=STAGE_NAMES[st];
 }
+}
+
+/* ---------- JOURNEY acts (SCENE 01-06): rendered HERE, inside the
+   one main loop, from the same chased journey progress the camera
+   uses — captions, dots, rail and flow steps can no longer drift
+   from the sky, on phone or desktop, in either scroll direction. */
+var jCaps=journeySec?journeySec.querySelectorAll(".jcap"):[];
+var jDots=journeySec?journeySec.querySelectorAll(".jdot"):[];
+var jFill=document.getElementById("jfill");
+var jCur=document.getElementById("jcur");
+var jName=document.getElementById("jname");
+var jHint=journeySec?journeySec.querySelector(".jhint"):null;
+var flowSteps=journeySec?journeySec.querySelectorAll(".flow-step"):[];
+var JNAMES=["THE COMPLEXITY","THE CONNECTION","THE INTELLIGENCE","THE ENGINEERING","THE EXECUTION","THE IMPACT"];
+var jActive=-1;
+function renderJourney(p){
+/* skip the DOM work while the stage is well off-screen */
+var sy=scrollNow();
+if(sy+GEO.vh*2<GEO.journeyTop||sy>GEO.journeyTop+GEO.journeyH+GEO.vh)return;
+var seg=1/6,i,cap,sp,op,prev;
+for(i=0;i<jCaps.length;i++){
+cap=jCaps[i];sp=p/seg-i;
+op=smooth(0,0.22,sp)*(1-smooth(0.8,1,sp));
+prev=parseFloat(cap.getAttribute("data-o")||"-1");
+if(Math.abs(op-prev)>0.004){
+cap.setAttribute("data-o",op.toFixed(3));
+cap.style.opacity=op.toFixed(3);
+cap.style.transform="translateY("+((1-op)*22).toFixed(1)+"px)";
+cap.style.visibility=op<=0.01?"hidden":"visible";
+cap.classList.toggle("on",op>0.55);
+}
+}
+var idx=Math.min(5,Math.floor(p*6));
+if(idx!==jActive){
+jActive=idx;
+if(jCur)jCur.textContent="0"+(idx+1);
+if(jName)jName.textContent=JNAMES[idx];
+for(i=0;i<jDots.length;i++)jDots[i].classList.toggle("on",i===idx);
+}
+if(jFill)jFill.style.transform="scaleX("+p.toFixed(4)+")";
+if(jHint)jHint.style.opacity=p<0.02?"1":"0";
+var wp=clamp01((p-2/6)/(1/6));
+var step=Math.min(4,Math.floor(wp*5.2));
+for(i=0;i<flowSteps.length;i++)flowSteps[i].classList.toggle("on",wp>0.02&&i<=step);
 }
 
 /* ---------- performance tiers ---------- */
@@ -1751,13 +1810,16 @@ setScale();
 
 function render(p,t){
 farMat.uniforms.uTime.value=t;bandMat.uniforms.uTime.value=t;dustMat.uniforms.uTime.value=t;
-/* ONE continuous flight across the whole first narrative. Camera
-   distance to Chang Geng is a strict function of narrative progress
-   p: scroll x -> distance x; stop scrolling and the camera rests
-   exactly there; scroll up and it retreats along the same path.
+/* ONE continuous flight across the cosmos section. Camera
+   distance to Chang Geng is a strict function of the cosmos local
+   progress p (passed in by the single scheduler): scroll x ->
+   distance x; stop scrolling and the camera rests exactly there;
+   scroll up and it retreats along the same path. Distance reaches
+   its minimum exactly at p=1 — the arrival moment — and stays
+   there through the manifesto and the six JOURNEY acts, the
+   arrived star holding as their backdrop.
    The distance curve keeps a near-constant RELATIVE growth rate, so
-   the star keeps swelling through the manifesto and the final
-   JOURNEY acts instead of finishing its growth inside the hero.
+   the star swells steadily for the whole flight.
    A gentle lateral drift fades out as we close in; the look-at
    target sits below the star by a distance-scaled offset (steepening
    slightly late in the flight), holding the star steady in the
@@ -1801,13 +1863,22 @@ return{render:render,resize:resize,degrade:degrade};
 /* ---------- boot: reduced motion gets the static sky, no pin ---------- */
 if(reduceMotion){
 section.classList.add("reduced");
+refreshGeometry();
 updateTexts(0);
-/* no flight under reduced motion, but the fixed sky must still
-   dissolve after the narrative so later chapters stay solid */
-var rf=function(){applyFade(narrativeState().fade);};
+/* no flight and no WebGL under reduced motion: the static fallback
+   sky stays, every line of text is readable in flow, and the cosmos
+   rail still tracks the real scroll position on scroll events —
+   the fixed sky must also still dissolve after the narrative so
+   the later chapters stay solid */
+var rf=function(){
+var ns=narrativeState();
+applyFade(ns.fade);
+updateTexts(progress());
+};
 rf();
 window.addEventListener("scroll",rf,{passive:true});
-window.addEventListener("resize",rf);
+window.addEventListener("resize",function(){refreshGeometry();rf();});
+window.addEventListener("load",function(){refreshGeometry();rf();});
 return;
 }
 var glReady=false;
@@ -1835,125 +1906,76 @@ setTimeout(function(){if(!glReady)skyFixed.classList.add("fallback");},5000);
 var rzT=0;
 window.addEventListener("resize",function(){
 clearTimeout(rzT);
-rzT=setTimeout(function(){paintFallback();if(gl)gl.resize();},200);
+rzT=setTimeout(function(){refreshGeometry();paintFallback();if(gl)gl.resize();},200);
 },{passive:true});
+window.addEventListener("load",refreshGeometry);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(refreshGeometry);
 
-/* ---------- main loop: one light chase toward the exact scroll
-   position; when the scroll rests, the camera rests exactly on it --- */
+/* ---------- THE one animation scheduler (V2.2) ----------
+   A single requestAnimationFrame loop drives everything: it reads
+   the scroll position once, chases the three timeline locals with
+   ONE time constant, and updates camera, star, cosmos overlays,
+   JOURNEY captions and both progress rails in the same frame.
+   When the scroll rests, every chased value snaps exactly onto its
+   target and stays there — nothing drifts. Scrolling up retraces
+   the same functions, so every state restores exactly in reverse.
+   The camera is a strict function of the cosmos local c: distance
+   reaches its minimum at c=1, the same frame the arrival overlay
+   (window 0.93–0.995 of c) completes — arrival text and camera
+   arrival are the same moment by construction. Past c=1 (the
+   manifesto and the six acts) c stays clamped at 1: the arrived
+   star holds as the backdrop while the acts play over it.
+   The sky fade is a direct function of scroll position — no
+   chase — so the dissolve into the solid chapters never lags. */
 var curC=-1,curN=-1,curJ=-1,lastNow=0,frameN=0,frameMs=16,prevNow=0;
+var lastTC=-1,lastTJ=-1;
 function chase(cur,target,dt){
 if(cur<0)return target;
 cur+=(target-cur)*(1-Math.exp(-18*dt));
 if(Math.abs(target-cur)<0.0004)cur=target;
 return cur;
 }
-var rafId=0,loopStopped=false;
+var rafId=0,loopRunning=false;
 function loop(now){
+if(!loopRunning)return;
 rafId=requestAnimationFrame(loop);
-if(document.hidden)return;
 var dt=Math.min(0.05,Math.max(0.001,(now-lastNow)/1000||0.016));
 lastNow=now;
-/* every moving part reads progress chased HERE, in this one loop,
-   with this one time constant: the cosmos overlays (title, five
-   journey lines, arrival) follow the cosmos section's own range,
-   the CAMERA follows the whole-narrative range, and the JOURNEY
-   captions follow the journey range — all three published on
-   window.__cgState each frame, so camera, captions and overlays
-   can never drift apart or keep moving after the scroll rests.
-   The sky fade is a direct function of scroll position — no
-   chase — so the dissolve into the solid chapters never lags. */
 var ns=narrativeState();
 applyFade(ns.fade);
 curC=chase(curC,progress(),dt);
 curN=chase(curN,ns.p,dt);
 curJ=chase(curJ,journeyProgress(),dt);
 window.__cgState={cosmos:curC,narrative:curN,journey:curJ};
-updateTexts(curC);
+/* DOM writes only while a value is actually moving */
+if(lastTC<0||Math.abs(curC-lastTC)>0.0003){updateTexts(curC);lastTC=curC;}
+if(lastTJ<0||Math.abs(curJ-lastTJ)>0.0003){renderJourney(curJ);lastTJ=curJ;}
 if(gl&&ns.fade>0.003){
 frameN++;
-try{gl.render(curN,now/1000);}catch(e){gl=null;skyFixed.classList.remove("gl-on");skyFixed.classList.add("fallback");if(fbCanvas)fbCanvas.style.display="";}
+try{gl.render(curC,now/1000);}catch(e){gl=null;skyFixed.classList.remove("gl-on");skyFixed.classList.add("fallback");if(fbCanvas)fbCanvas.style.display="";}
 frameMs=frameMs*0.95+(now-(prevNow||now))*0.05;prevNow=now;
 if(frameN%150===0&&frameMs>30&&gl&&gl.degrade)gl.degrade();
 }
 }
+function startLoop(){
+if(loopRunning)return;
+loopRunning=true;lastNow=0;prevNow=0;
 rafId=requestAnimationFrame(loop);
-/* release the loop when the page goes away; resume cleanly if the
-   browser restores it from the back-forward cache */
-window.addEventListener("pagehide",function(){loopStopped=true;cancelAnimationFrame(rafId);});
-window.addEventListener("pageshow",function(){if(loopStopped){loopStopped=false;lastNow=0;rafId=requestAnimationFrame(loop);}});
+}
+function stopLoop(){
+loopRunning=false;
+cancelAnimationFrame(rafId);
+}
+/* one lifecycle: hidden tab, pagehide and bfcache restore all go
+   through the same start/stop guard, so no path can ever leave
+   two loops running or none */
+document.addEventListener("visibilitychange",function(){if(document.hidden)stopLoop();else startLoop();});
+window.addEventListener("pagehide",stopLoop);
+window.addEventListener("pageshow",startLoop);
+refreshGeometry();
+startLoop();
 })();
 
-</script>
-<script>
-/* ---------- JOURNEY (SCENE 01-06): captions crossfade and the jrail
-   progress track track scroll progress through the pinned stage,
-   1:1 with the scroll position (restored chapter driver) ---------- */
-(function(){
-"use strict";
-var reduceMotion=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-var section=document.getElementById("journey");
-if(!section||reduceMotion)return;
-var caps=section.querySelectorAll(".jcap");
-var dots=section.querySelectorAll(".jdot");
-var fill=document.getElementById("jfill");
-var curEl=document.getElementById("jcur");
-var nameEl=document.getElementById("jname");
-var hint=section.querySelector(".jhint");
-var flowSteps=section.querySelectorAll(".flow-step");
-var NAMES=["THE COMPLEXITY","THE CONNECTION","THE INTELLIGENCE","THE ENGINEERING","THE EXECUTION","THE IMPACT"];
-section.classList.add("live");
-function clamp01(x){return x<0?0:x>1?1:x;}
-function smooth(a,b,x){var t=clamp01((x-a)/(b-a));return t*t*(3-2*t);}
-function computeProgress(){
-var r=section.getBoundingClientRect();
-var total=r.height-window.innerHeight;
-if(total<=0)return 0;
-return clamp01(-r.top/total);
-}
-var activeIdx=-1;
-function renderCaptions(p){
-var seg=1/6,i,cap,sp,op,prev;
-for(i=0;i<caps.length;i++){
-cap=caps[i];sp=p/seg-i;
-op=smooth(0,0.22,sp)*(1-smooth(0.8,1,sp));
-prev=parseFloat(cap.getAttribute("data-o")||"-1");
-if(Math.abs(op-prev)>0.004){
-cap.setAttribute("data-o",op.toFixed(3));
-cap.style.opacity=op.toFixed(3);
-cap.style.transform="translateY("+((1-op)*22).toFixed(1)+"px)";
-cap.style.visibility=op<=0.01?"hidden":"visible";
-cap.classList.toggle("on",op>0.55);
-}
-}
-var idx=Math.min(5,Math.floor(p*6));
-if(idx!==activeIdx){
-activeIdx=idx;
-if(curEl)curEl.textContent="0"+(idx+1);
-if(nameEl)nameEl.textContent=NAMES[idx];
-for(i=0;i<dots.length;i++)dots[i].classList.toggle("on",i===idx);
-}
-if(fill)fill.style.transform="scaleX("+p.toFixed(4)+")";
-if(hint)hint.style.opacity=p<0.02?"1":"0";
-var wp=clamp01((p-2/6)/(1/6));
-var step=Math.min(4,Math.floor(wp*5.2));
-for(i=0;i<flowSteps.length;i++)flowSteps[i].classList.toggle("on",wp>0.02&&i<=step);
-}
-function tick(){
-/* one shared progress: the sky loop chases the journey range with
-   the same time constant as the camera and publishes it on
-   window.__cgState — captions, camera and overlays all move on the
-   same value in the same frame, on phone and desktop alike, and
-   everything settles together when the scroll comes to rest.
-   Falls back to a direct read until the sky loop has published. */
-var st=window.__cgState;
-var p=(st&&typeof st.journey==="number")?st.journey:computeProgress();
-/* skip the DOM work while the stage is well off-screen */
-var r=section.getBoundingClientRect();
-if(r.bottom>-window.innerHeight&&r.top<window.innerHeight*2)renderCaptions(p);
-requestAnimationFrame(tick);
-}
-requestAnimationFrame(tick);
-})();
 </script>
 </body>
 </html>
